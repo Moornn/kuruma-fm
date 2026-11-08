@@ -3,11 +3,11 @@ import Hls from 'hls.js';
 import {
   Play, Pause, SkipForward, SkipBack, Radio, Car,
   Plus, Trash2, Volume2, VolumeX, RefreshCw, AlertCircle,
-  Star, Sparkles, RotateCcw, ShieldCheck
+  Star, Sparkles, RotateCcw
 } from 'lucide-react';
 
 // ============================================================================
-// 1. CATALOGUE COMPLET (FLUX MP3 DIRECTS + FLUX LOCAUX HLS JCBA)
+// 1. CATALOGUE V5 — FLUX DIRECTS VÉRIFIÉS (SANS BLOCAGE HLS)
 // ============================================================================
 const DEFAULT_STATIONS = [
   {
@@ -37,68 +37,12 @@ const DEFAULT_STATIONS = [
     streamUrl: 'https://fmsetagaya834.out.airtime.pro/fmsetagaya834_a',
     fallbackUrl: 'https://fmsetagaya834.out.airtime.pro/fmsetagaya834_b',
     type: 'mp3',
-    color: '#14b8a6',
-    isFavorite: true
-  },
-  {
-    id: 'fm-odawara',
-    presetNumber: 3,
-    name: 'FM Odawara',
-    kanji: 'FMおだわら',
-    frequency: '87.9 FM',
-    prefecture: 'Kanagawa',
-    prefectureKanji: '神奈川',
-    genre: 'Talk Local, Jazz & Culture',
-    streamUrl: 'https://musicbird-hls.leanstream.co/musicbird/JCB019.stream/playlist.m3u8',
-    type: 'hls',
-    color: '#f59e0b',
-    isFavorite: true
-  },
-  {
-    id: 'fm-karuizawa',
-    presetNumber: 4,
-    name: 'FM Karuizawa',
-    kanji: 'FM軽井沢',
-    frequency: '77.5 FM',
-    prefecture: 'Nagano',
-    prefectureKanji: '長野',
-    genre: 'Jazz, Détente & Infos Locales',
-    streamUrl: 'https://musicbird-hls.leanstream.co/musicbird/JCB034.stream/playlist.m3u8',
-    type: 'hls',
     color: '#10b981',
     isFavorite: true
   },
   {
-    id: 'kyoto-living',
-    presetNumber: 5,
-    name: 'Kyoto Living FM',
-    kanji: '京都リビングFM',
-    frequency: '84.5 FM',
-    prefecture: 'Kyoto',
-    prefectureKanji: '京都',
-    genre: 'Vie Locale & Musique Douce',
-    streamUrl: 'https://musicbird-hls.leanstream.co/musicbird/JCB068.stream/playlist.m3u8',
-    type: 'hls',
-    color: '#ef4444',
-    isFavorite: true
-  },
-  {
-    id: 'kazusa-fm',
-    presetNumber: 6,
-    name: 'Kazusa FM',
-    kanji: 'かずさFM',
-    frequency: '83.4 FM',
-    prefecture: 'Chiba',
-    prefectureKanji: '千葉',
-    genre: 'Émissions Parlées & Variétés',
-    streamUrl: 'https://musicbird-hls.leanstream.co/musicbird/JCB021.stream/playlist.m3u8',
-    type: 'hls',
-    color: '#3b82f6',
-    isFavorite: true
-  },
-  {
     id: 'j1-gold',
-    presetNumber: 7,
+    presetNumber: 3,
     name: 'J1 Gold Tokyo',
     kanji: 'J1ゴールド東京',
     frequency: 'CITY POP',
@@ -112,7 +56,7 @@ const DEFAULT_STATIONS = [
   },
   {
     id: 'j1-hits',
-    presetNumber: 8,
+    presetNumber: 4,
     name: 'J1 FM Tokyo',
     kanji: 'J1ヒッツ東京',
     frequency: 'J-POP HD',
@@ -125,22 +69,22 @@ const DEFAULT_STATIONS = [
     isFavorite: true
   },
   {
-    id: 'jazz-sakura',
-    presetNumber: 9,
-    name: 'Jazz Sakura',
-    kanji: 'ジャズ桜',
-    frequency: 'JAZZ JP',
-    prefecture: 'Tokyo / Kyoto',
-    prefectureKanji: '桜',
-    genre: 'Japanese Jazz, Lounge & Bossa',
-    streamUrl: 'https://cast1.torontocast.com:2120/;',
+    id: 'j1-xtra',
+    presetNumber: 5,
+    name: 'J1 Xtra Tokyo',
+    kanji: 'J1エクストラ',
+    frequency: 'ENKA / TRAD',
+    prefecture: 'Tokyo',
+    prefectureKanji: '日本',
+    genre: 'Enka, Kayōkyoku & Traditionnel',
+    streamUrl: 'https://jenny.torontocast.com:2000/stream/J1XTRA',
     type: 'mp3',
-    color: '#f97316',
+    color: '#f59e0b',
     isFavorite: true
   },
   {
     id: 'wrep-live',
-    presetNumber: 10,
+    presetNumber: 6,
     name: 'WREP LIVE',
     kanji: 'WREP 日本語ラップ',
     frequency: 'WEB',
@@ -151,11 +95,11 @@ const DEFAULT_STATIONS = [
     fallbackUrl: 'https://c13.radioboss.fm:8200/stream',
     type: 'mp3',
     color: '#6366f1',
-    isFavorite: false
+    isFavorite: true
   },
   {
     id: 'gotanno-fm',
-    presetNumber: 11,
+    presetNumber: 7,
     name: 'Gotanno 89.2',
     kanji: '五反野FM',
     frequency: '89.2 FM',
@@ -166,11 +110,11 @@ const DEFAULT_STATIONS = [
     fallbackUrl: 'https://gotanno.love:8443/;',
     type: 'mp3',
     color: '#f43f5e',
-    isFavorite: false
+    isFavorite: true
   },
   {
     id: 'listen-moe',
-    presetNumber: 12,
+    presetNumber: 8,
     name: 'Listen.moe JP',
     kanji: '秋葉原ラジオ',
     frequency: '24/7 HD',
@@ -178,73 +122,38 @@ const DEFAULT_STATIONS = [
     prefectureKanji: '秋葉原',
     genre: 'J-Pop, Anime & Future Funk (Sans Pub)',
     streamUrl: 'https://listen.moe/stream',
+    fallbackUrl: 'https://listen.moe/fallback',
     type: 'mp3',
     color: '#8b5cf6',
-    isFavorite: false
+    isFavorite: true
   }
 ];
 
-// Catalogue supplémentaire JCBA + J-Music en 1 clic
-const BONUS_JCBA_CATALOG = [
+const BONUS_CATALOG = [
   {
-    id: 'sakura-fm',
-    name: 'Sakura FM',
-    kanji: 'さくらFM',
-    frequency: '78.7 FM',
-    prefecture: 'Hyogo (Nishinomiya)',
-    prefectureKanji: '兵庫',
-    genre: 'Musique & Infos Kansai',
-    streamUrl: 'https://musicbird-hls.leanstream.co/musicbird/JCB064.stream/playlist.m3u8',
-    type: 'hls',
-    color: '#f43f5e'
-  },
-  {
-    id: 'radio-monster',
-    name: 'Radio Monster',
-    kanji: 'ラジオモンスター',
-    frequency: '76.2 FM',
-    prefecture: 'Yamagata',
-    prefectureKanji: '山形',
-    genre: 'Talk & Pop du Tohoku',
-    streamUrl: 'https://musicbird-hls.leanstream.co/musicbird/JCB006.stream/playlist.m3u8',
-    type: 'hls',
-    color: '#06b6d4'
-  },
-  {
-    id: 'fm-kurashiki',
-    name: 'FM Kurashiki',
-    kanji: 'FMくらしき',
-    frequency: '82.8 FM',
-    prefecture: 'Okayama',
-    prefectureKanji: '岡山',
-    genre: 'Vie Locale & J-Music',
-    streamUrl: 'https://musicbird-hls.leanstream.co/musicbird/JCB079.stream/playlist.m3u8',
-    type: 'hls',
-    color: '#14b8a6'
-  },
-  {
-    id: 'dreams-fm',
-    name: 'Dreams FM',
-    kanji: 'ドリームスFM',
-    frequency: '76.5 FM',
-    prefecture: 'Fukuoka (Kurume)',
-    prefectureKanji: '福岡',
-    genre: 'Kyushu Local & Talk',
-    streamUrl: 'https://musicbird-hls.leanstream.co/musicbird/JCB090.stream/playlist.m3u8',
-    type: 'hls',
+    id: 'gensokyo-radio',
+    name: 'Gensokyo Radio',
+    kanji: '幻想郷ラジオ',
+    frequency: 'DOUJIN',
+    prefecture: 'Akihabara',
+    prefectureKanji: '幻想',
+    genre: 'Arrangements Doujin, Jazz & Instrumental',
+    streamUrl: 'https://stream.gensokyoradio.net/3/',
+    type: 'mp3',
     color: '#f97316'
   },
   {
-    id: 'j1-xtra',
-    name: 'J1 Xtra Tokyo',
-    kanji: 'J1エクストラ',
-    frequency: 'ENKA / TRAD',
-    prefecture: 'Tokyo',
-    prefectureKanji: '日本',
-    genre: 'Enka, Kayōkyoku & Traditionnel',
-    streamUrl: 'https://jenny.torontocast.com:2000/stream/J1XTRA',
+    id: 'jazz-sakura',
+    name: 'Jazz Sakura',
+    kanji: 'ジャズ桜',
+    frequency: 'JAZZ JP',
+    prefecture: 'Tokyo / Kyoto',
+    prefectureKanji: '桜',
+    genre: 'Japanese Jazz, Lounge & Bossa',
+    streamUrl: 'https://cast1.torontocast.com:2120/stream',
+    fallbackUrl: 'https://cast1.torontocast.com:2120/;',
     type: 'mp3',
-    color: '#eab308'
+    color: '#ef4444'
   },
   {
     id: 'jpop-sakura',
@@ -254,14 +163,28 @@ const BONUS_JCBA_CATALOG = [
     prefecture: 'Tokyo',
     prefectureKanji: '昭和',
     genre: 'Classiques J-Pop 70s, 80s & 90s',
-    streamUrl: 'https://igor.torontocast.com:1710/;',
+    streamUrl: 'https://igor.torontocast.com:1710/stream',
+    fallbackUrl: 'https://igor.torontocast.com:1710/;',
     type: 'mp3',
     color: '#ec4899'
+  },
+  {
+    id: 'jrock-powerplay',
+    name: 'J-Rock Powerplay',
+    kanji: 'Jロック・ラジオ',
+    frequency: 'ROCK JP',
+    prefecture: 'Osaka / Tokyo',
+    prefectureKanji: '大阪',
+    genre: 'Rock Japonais & Visual Kei',
+    streamUrl: 'https://kathy.torontocast.com:3340/stream',
+    fallbackUrl: 'https://kathy.torontocast.com:3340/;',
+    type: 'mp3',
+    color: '#14b8a6'
   }
 ];
 
-const STORAGE_KEY = 'kuruma_fm_stations_v4';
-const LAST_STATION_KEY = 'kuruma_fm_last_station_v4';
+const STORAGE_KEY = 'kuruma_fm_stations_v5';
+const LAST_STATION_KEY = 'kuruma_fm_last_station_v5';
 
 // ============================================================================
 // 2. GÉNÉRATEUR DE POCHETTE POUR ÉCRAN D'AUTORADIO BLUETOOTH / CARPLAY
@@ -329,9 +252,8 @@ export default function App() {
   });
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [status, setStatus] = useState('idle'); // idle | loading | playing | error
+  const [status, setStatus] = useState('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const [usingProxy, setUsingProxy] = useState(false);
   const [carMode, setCarMode] = useState(true);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -375,32 +297,23 @@ export default function App() {
     setIsPlaying(false);
     setStatus('idle');
     setErrorMsg('');
-    setUsingProxy(false);
   }, []);
 
-  const startStream = useCallback(async (stationToPlay, useBackup = false, forceProxy = false) => {
+  const startStream = useCallback(async (stationToPlay, useBackup = false) => {
     if (!audioRef.current || !stationToPlay) return;
     clearTimeout(reconnectTimerRef.current);
     destroyHls();
 
-    const rawUrl = (useBackup && stationToPlay.fallbackUrl)
+    const targetUrl = (useBackup && stationToPlay.fallbackUrl)
       ? stationToPlay.fallbackUrl
       : stationToPlay.streamUrl;
 
-    if (!rawUrl) {
+    if (!targetUrl) {
       setStatus('error');
-      setErrorMsg('URL du flux manquante');
+      setErrorMsg('URL manquante');
       return;
     }
 
-    const isHlsStream = stationToPlay.type === 'hls' || rawUrl.includes('.m3u8');
-    // Pour les flux JCBA / leanstream, on passe par /api/proxy par défaut ou en fallback
-    const shouldProxy = forceProxy || (isHlsStream && rawUrl.includes('leanstream.co'));
-    const finalUrl = shouldProxy
-      ? `/api/proxy?url=${encodeURIComponent(rawUrl)}`
-      : rawUrl;
-
-    setUsingProxy(shouldProxy);
     setStatus('loading');
     setErrorMsg('');
     setIsPlaying(true);
@@ -408,14 +321,14 @@ export default function App() {
     audioRef.current.volume = isMuted ? 0 : volume;
     audioRef.current.muted = isMuted;
 
-    // 1. Lecture HLS (.m3u8) via hls.js
+    const isHlsStream = stationToPlay.type === 'hls' || targetUrl.includes('.m3u8');
+
     if (isHlsStream && Hls.isSupported()) {
       const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true
+        enableWorker: false
       });
       hlsRef.current = hls;
-      hls.loadSource(finalUrl);
+      hls.loadSource(targetUrl);
       hls.attachMedia(audioRef.current);
 
       hls.on(Hls.Events.MANIFEST_PARSED, async () => {
@@ -432,35 +345,27 @@ export default function App() {
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
           hls.destroy();
-          // Si l'accès direct a échoué, on retente immédiatement via le relais /api/proxy
-          if (!shouldProxy) {
-            startStream(stationToPlay, useBackup, true);
-            return;
-          }
           setStatus('error');
-          setErrorMsg('Serveur JCBA hors-ligne (nouvel essai 5s)');
-          reconnectTimerRef.current = setTimeout(() => startStream(stationToPlay, false, true), 5000);
+          setErrorMsg('Flux HLS hors-ligne');
+          reconnectTimerRef.current = setTimeout(() => startStream(stationToPlay, false), 5000);
         }
       });
       return;
     }
 
-    // 2. Lecture native (MP3/AAC ou HLS natif sur Safari iOS)
     try {
-      audioRef.current.src = finalUrl;
+      audioRef.current.src = targetUrl;
       audioRef.current.load();
       await audioRef.current.play();
       setStatus('playing');
     } catch (err) {
       if (!useBackup && stationToPlay.fallbackUrl) {
         usingFallbackRef.current = true;
-        startStream(stationToPlay, true, false);
-      } else if (isHlsStream && !shouldProxy) {
-        startStream(stationToPlay, false, true);
+        startStream(stationToPlay, true);
       } else {
         setStatus('error');
-        setErrorMsg('Flux indisponible (tentative 5s)');
-        reconnectTimerRef.current = setTimeout(() => startStream(stationToPlay, false, false), 5000);
+        setErrorMsg('Reconnexion dans 5s...');
+        reconnectTimerRef.current = setTimeout(() => startStream(stationToPlay, false), 5000);
       }
     }
   }, [volume, isMuted]);
@@ -470,7 +375,7 @@ export default function App() {
       stopStream();
     } else {
       usingFallbackRef.current = false;
-      startStream(currentStation, false, false);
+      startStream(currentStation, false);
     }
   }, [isPlaying, status, stopStream, startStream, currentStation]);
 
@@ -479,7 +384,7 @@ export default function App() {
     setCurrentIndex(idx);
     const targetStation = stations[idx];
     if (targetStation) {
-      startStream(targetStation, false, false);
+      startStream(targetStation, false);
     }
   }, [stations, startStream]);
 
@@ -500,7 +405,6 @@ export default function App() {
     };
   }, []);
 
-  // Synchronisation Bluetooth Autoradio / CarPlay / Clavier PC
   useEffect(() => {
     if ('mediaSession' in navigator && currentStation) {
       const artworkUri = generateCarArtworkDataUri(currentStation);
@@ -513,7 +417,7 @@ export default function App() {
         ]
       });
 
-      navigator.mediaSession.setActionHandler('play', () => startStream(currentStation, usingFallbackRef.current, false));
+      navigator.mediaSession.setActionHandler('play', () => startStream(currentStation, usingFallbackRef.current));
       navigator.mediaSession.setActionHandler('pause', stopStream);
       navigator.mediaSession.setActionHandler('previoustrack', prevStation);
       navigator.mediaSession.setActionHandler('nexttrack', nextStation);
@@ -557,7 +461,7 @@ export default function App() {
 
   const handleResetDefaults = () => {
     stopStream();
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.clear();
     const defaults = DEFAULT_STATIONS.map(normalizeStation);
     setStations(defaults);
     setCurrentIndex(0);
@@ -580,20 +484,17 @@ export default function App() {
           setErrorMsg('');
         }}
         onError={() => {
-          const isHls = currentStation?.type === 'hls' || currentStation?.streamUrl?.includes('.m3u8');
-          if (isHls && Hls.isSupported()) return;
           if (!usingFallbackRef.current && currentStation?.fallbackUrl) {
             usingFallbackRef.current = true;
-            startStream(currentStation, true, false);
+            startStream(currentStation, true);
           } else if (isPlaying) {
             setStatus('error');
             setErrorMsg('Flux interrompu, reconnexion...');
-            reconnectTimerRef.current = setTimeout(() => startStream(currentStation, false, false), 5000);
+            reconnectTimerRef.current = setTimeout(() => startStream(currentStation, false), 5000);
           }
         }}
       />
 
-      {/* Barre supérieure */}
       <header className="flex items-center justify-between px-5 py-3.5 bg-zinc-900/90 border-b border-zinc-800">
         <div className="flex items-center gap-3">
           <div
@@ -601,7 +502,7 @@ export default function App() {
             style={{ backgroundColor: currentStation?.color || '#ef4444' }}
           />
           <h1 className="text-lg font-bold tracking-wider">
-            KURUMA FM <span className="text-zinc-500 font-normal text-sm">車FM</span>
+            KURUMA FM <span className="text-zinc-500 font-normal text-sm">車FM v5</span>
           </h1>
         </div>
 
@@ -631,7 +532,6 @@ export default function App() {
       </header>
 
       {carMode ? (
-        /* ================= MODE CONDUITE ================= */
         <main className="flex-1 flex flex-col justify-between p-4 sm:p-6 max-w-3xl mx-auto w-full gap-4">
           <div
             className="rounded-3xl p-6 shadow-2xl flex flex-col justify-between min-h-[210px] border border-white/15 relative overflow-hidden"
@@ -647,11 +547,6 @@ export default function App() {
                 <span className="px-2.5 py-1 rounded-full bg-white/15 text-[11px] font-bold uppercase">
                   {currentStation.type === 'hls' ? 'HLS .m3u8' : 'MP3/AAC'}
                 </span>
-                {usingProxy && (
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 text-[11px] font-bold flex items-center gap-1">
-                    <ShieldCheck size={12} /> RELAIS JP
-                  </span>
-                )}
               </div>
 
               <span className="text-xs font-semibold px-3 py-1 rounded-full bg-black/55 flex items-center gap-1.5">
@@ -681,7 +576,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Contrôles Géants */}
           <div className="grid grid-cols-3 gap-4">
             <button
               onClick={prevStation}
@@ -716,7 +610,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Grille des présélections */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {displayedStations.map((st) => {
               const realIdx = stations.findIndex(s => s.id === st.id);
@@ -754,7 +647,6 @@ export default function App() {
             })}
           </div>
 
-          {/* Barre de volume */}
           <div className="flex items-center gap-3 bg-zinc-900/70 px-4 py-3 rounded-2xl border border-zinc-800/80">
             <button
               onClick={() => {
@@ -786,13 +678,12 @@ export default function App() {
           </div>
         </main>
       ) : (
-        /* ================= GESTIONNAIRE DE STATIONS ================= */
         <main className="flex-1 p-5 max-w-3xl mx-auto w-full space-y-6">
           <div className="flex items-center justify-between bg-zinc-900/90 p-4 rounded-2xl border border-zinc-800">
             <div>
-              <h3 className="font-bold text-sm text-zinc-200">Synchronisation du code (`DEFAULT_STATIONS`)</h3>
+              <h3 className="font-bold text-sm text-zinc-200">Vider le cache local et recharger les stations</h3>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Clique ici pour charger les 12 stations par défaut (MP3 + JCBA avec relais).
+                Efface toutes les anciennes stations en mémoire pour charger la liste v5.
               </p>
             </div>
             <button
@@ -803,13 +694,12 @@ export default function App() {
             </button>
           </div>
 
-          {/* Catalogue Bonus en 1 clic */}
           <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-3">
             <h3 className="font-bold text-sm text-amber-400 flex items-center gap-2">
-              <Sparkles size={16} /> Catalogue Bonus JCBA & J-Music (Ajout en 1 clic)
+              <Sparkles size={16} /> Catalogue Bonus J-Music & Jazz (Ajout en 1 clic)
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {BONUS_JCBA_CATALOG.map((bonus) => {
+              {BONUS_CATALOG.map((bonus) => {
                 const alreadyAdded = stations.some(s => s.streamUrl === bonus.streamUrl);
                 return (
                   <div
@@ -839,7 +729,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Formulaire d'ajout manuel */}
           <form onSubmit={handleAddStation} className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-3">
             <h3 className="font-bold text-sm text-zinc-200 flex items-center gap-2">
               <Plus size={16} /> Ajouter un flux radio personnalisé
@@ -902,7 +791,6 @@ export default function App() {
             </button>
           </form>
 
-          {/* Liste des stations */}
           <div className="space-y-2">
             {stations.map((st, idx) => (
               <div key={st.id} className="flex items-center justify-between p-3.5 bg-zinc-900 rounded-2xl border border-zinc-800">
