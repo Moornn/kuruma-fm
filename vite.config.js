@@ -18,16 +18,16 @@ export default defineConfig({
       manifest: {
         name: 'KURUMA FM - Japan Car Radio',
         short_name: 'Kuruma FM',
-        description: 'Lecteur de radios japonaises optimisé pour la voiture et le bureau',
+        description: 'Lecteur de radios japonaises sans pub pour la voiture',
         theme_color: '#09090b',
         background_color: '#09090b',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
           {
-            src: 'https://cdn-icons-png.flaticon.com/512/3075/3075858.png',
+            src: '/icon.svg',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/svg+xml',
             purpose: 'any maskable'
           }
         ]
