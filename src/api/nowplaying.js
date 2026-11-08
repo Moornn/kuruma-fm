@@ -1,112 +1,125 @@
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+import net from 'net';
+import tls from 'tls';
 
-  const { url, rgId, search } = req.query;
+function fetchIcyMetadata(urlString, redirectsLeft = 2) {
+  return new Promise((resolve) => {
+    if (redirectsLeft <= 0) return resolve({ title: null, artist: null, raw: null });
 
-  // 1. Recherche de stations dans le catalogue Radio Garden
-  if (search) {
+    let parsed;
     try {
-      const rgRes = await fetch(
-        `https://radio.garden/api/search?q=${encodeURIComponent(search)}`,
-        { headers: { 'User-Agent': 'Mozilla/5.0' } }
-      );
-      const data = await rgRes.json();
-      const results = (data?.hits?.hits || [])
-        .map(h => h._source)
-        .filter(s => s && s.type === 'channel')
-        .map(s => {
-          const rawUrl = s.url || s.page?.url || '';
-          const parts = rawUrl.split('/').filter(Boolean);
-          const channelId = parts[parts.length - 1];
-          return {
-            rgId: channelId,
-            name: s.title || s.page?.title || 'Radio JP',
-            subtitle: s.subtitle || s.page?.subtitle || 'Japon',
-            streamUrl: `https://radio.garden/api/ara/content/listen/${channelId}/channel.mp3`
-          };
-        });
-      return res.status(200).json({ results });
-    } catch (e) {
-      return res.status(200).json({ results: [], error: e.message });
-    }
-  }
-
-  // 2. Lecture du Titre et de l'Artiste en direct (Protocole ICY)
-  const targetUrl = rgId
-    ? `https://radio.garden/api/ara/content/listen/${rgId}/channel.mp3`
-    : url;
-
-  if (!targetUrl) {
-    return res.status(400).json({ error: 'Paramètre url ou rgId manquant' });
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3500);
-
-  try {
-    const response = await fetch(targetUrl, {
-      headers: {
-        'Icy-MetaData': '1',
-        'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18'
-      },
-      redirect: 'follow',
-      signal: controller.signal
-    });
-
-    const metaintHeader = response.headers.get('icy-metaint');
-    if (!metaintHeader || !response.body) {
-      clearTimeout(timeout);
-      controller.abort();
-      return res.status(200).json({ title: null, artist: null, raw: null });
+      parsed = new URL(urlString);
+    } catch {
+      return resolve({ title: null, artist: null, raw: null });
     }
 
-    const metaint = parseInt(metaintHeader, 10);
-    const reader = response.body.getReader();
-    let buffer = new Uint8Array(0);
+    const isHttps = parsed.protocol === 'https:';
+    const port = parsed.port ? parseInt(parsed.port, 10) : (isHttps ? 443 : 80);
+    const host = parsed.hostname;
+    let path = (parsed.pathname || '/') + (parsed.search || '');
+    if (path === '/' || path.endsWith('/;')) path = '/stream';
 
-    while (buffer.length < metaint + 4096) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    const options = isHttps
+      ? { host, port, servername: host, rejectUnauthorized: false }
+      : { host, port };
 
-      const next = new Uint8Array(buffer.length + value.length);
-      next.set(buffer);
-      next.set(value, buffer.length);
-      buffer = next;
+    const socket = isHttps ? tls.connect(options) : net.connect(options);
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve({ title: null, artist: null, raw: null });
+    }, 3500);
 
-      if (buffer.length > metaint) {
-        const metaLength = buffer[metaint] * 16;
-        if (metaLength === 0) break;
+    const finish = (result) => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(result);
+    };
 
-        if (buffer.length >= metaint + 1 + metaLength) {
-          const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLength);
-          const metaString = new TextDecoder('utf-8').decode(metaBytes);
-          const match = metaString.match(/StreamTitle='([^']*)'/i);
+    const sendRequest = () => {
+      const reqStr = [
+        `GET ${path} HTTP/1.0`,
+        `Host: ${host}:${port}`,
+        `User-Agent: VLC/3.0.18`,
+        `Icy-MetaData: 1`,
+        `Connection: close`,
+        `\r\n`
+      ].join('\r\n');
+      socket.write(reqStr);
+    };
 
-          if (match && match[1]) {
-            const rawTitle = match[1].trim();
-            let artist = '';
-            let title = rawTitle;
-            if (rawTitle.includes(' - ')) {
-              const parts = rawTitle.split(' - ');
-              artist = parts[0].trim();
-              title = parts.slice(1).join(' - ').trim();
+    if (isHttps) socket.once('secureConnect', sendRequest);
+    else socket.once('connect', sendRequest);
+
+    let buffer = Buffer.alloc(0);
+    let metaint = -1;
+    let bodyStart = -1;
+
+    socket.on('data', (chunk) => {
+      buffer = Buffer.concat([buffer, chunk]);
+
+      if (bodyStart === -1) {
+        const idx = buffer.indexOf('\r\n\r\n');
+        if (idx !== -1) {
+          bodyStart = idx + 4;
+          const headers = buffer.slice(0, idx).toString('latin1').split('\r\n');
+          const status = headers[0] || '';
+
+          if (/^HTTP\/\d\.\d\s+30[12378]/.test(status)) {
+            const loc = headers.find(h => h.toLowerCase().startsWith('location:'));
+            if (loc) {
+              clearTimeout(timer);
+              socket.destroy();
+              const nextUrl = new URL(loc.slice(9).trim(), urlString).href;
+              return resolve(fetchIcyMetadata(nextUrl, redirectsLeft - 1));
             }
-            clearTimeout(timeout);
-            controller.abort();
-            return res.status(200).json({ title, artist, raw: rawTitle });
           }
-          break;
+
+          const metaHeader = headers.find(h => h.toLowerCase().startsWith('icy-metaint:'));
+          if (metaHeader) {
+            metaint = parseInt(metaHeader.slice(12).trim(), 10);
+          } else {
+            return finish({ title: null, artist: null, raw: null });
+          }
         }
       }
-    }
 
-    clearTimeout(timeout);
-    controller.abort();
-    return res.status(200).json({ title: null, artist: null, raw: null });
-  } catch (err) {
-    clearTimeout(timeout);
-    return res.status(200).json({ title: null, artist: null, raw: null });
-  }
+      if (bodyStart !== -1 && metaint > 0) {
+        const audioAndMeta = buffer.slice(bodyStart);
+        if (audioAndMeta.length > metaint) {
+          const metaLen = audioAndMeta[metaint] * 16;
+          if (metaLen === 0) {
+            return finish({ title: null, artist: null, raw: null });
+          }
+          if (audioAndMeta.length >= metaint + 1 + metaLen) {
+            const metaBytes = audioAndMeta.slice(metaint + 1, metaint + 1 + metaLen);
+            const metaStr = new TextDecoder('utf-8').decode(metaBytes);
+            const match = metaStr.match(/StreamTitle='([^']*)'/i);
+            if (match && match[1]) {
+              const rawTitle = match[1].trim();
+              let artist = '';
+              let title = rawTitle;
+              if (rawTitle.includes(' - ')) {
+                const parts = rawTitle.split(' - ');
+                artist = parts[0].trim();
+                title = parts.slice(1).join(' - ').trim();
+              }
+              return finish({ title, artist, raw: rawTitle });
+            }
+            return finish({ title: null, artist: null, raw: null });
+          }
+        }
+      }
+    });
+
+    socket.on('error', () => finish({ title: null, artist: null, raw: null }));
+    socket.on('end', () => finish({ title: null, artist: null, raw: null }));
+  });
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ title: null, artist: null, raw: null });
+
+  const data = await fetchIcyMetadata(decodeURIComponent(url));
+  return res.status(200).json(data);
 }

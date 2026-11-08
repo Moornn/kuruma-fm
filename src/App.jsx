@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 // ============================================================================
-// 1. STATIONS PAR DÉFAUT V6 (INCLUANT JAZZ SAKURA & RELAYAGE AUTOMATIQUE)
+// 1. STATIONS PAR DÉFAUT V7 (FLUX VÉRIFIÉS + RELAIS TCP POUR TORONTOCAST)
 // ============================================================================
 const DEFAULT_STATIONS = [
   {
@@ -34,8 +34,8 @@ const DEFAULT_STATIONS = [
     prefecture: 'Tokyo / Kyoto',
     prefectureKanji: '桜',
     genre: 'Japanese Jazz, Lounge & Bossa',
-    streamUrl: 'http://cast1.torontocast.com:2120/;',
-    useProxy: true, // Passe par /api/stream pour convertir le port HTTP 2120 en HTTPS
+    streamUrl: 'http://cast1.torontocast.com:2120/stream',
+    useProxy: true,
     color: '#ef4444',
     isFavorite: true
   },
@@ -77,7 +77,7 @@ const DEFAULT_STATIONS = [
     prefecture: 'Tokyo',
     prefectureKanji: '昭和',
     genre: 'Classiques J-Pop 70s, 80s & 90s',
-    streamUrl: 'http://igor.torontocast.com:1710/;',
+    streamUrl: 'http://igor.torontocast.com:1710/stream',
     useProxy: true,
     color: '#ec4899',
     isFavorite: true
@@ -105,7 +105,7 @@ const DEFAULT_STATIONS = [
     prefecture: 'Osaka / Tokyo',
     prefectureKanji: '大阪',
     genre: 'Rock Japonais & Visual Kei',
-    streamUrl: 'http://kathy.torontocast.com:3340/;',
+    streamUrl: 'http://kathy.torontocast.com:3340/stream',
     useProxy: true,
     color: '#14b8a6',
     isFavorite: true
@@ -155,11 +155,17 @@ const DEFAULT_STATIONS = [
   }
 ];
 
-const STORAGE_KEY = 'kuruma_fm_stations_v6';
-const LAST_STATION_KEY = 'kuruma_fm_last_station_v6';
+const STORAGE_KEY = 'kuruma_fm_stations_v7';
+const LAST_STATION_KEY = 'kuruma_fm_last_station_v7';
+
+const RADIO_BROWSER_MIRRORS = [
+  'https://de1.api.radio-browser.info',
+  'https://fi1.api.radio-browser.info',
+  'https://at1.api.radio-browser.info'
+];
 
 // ============================================================================
-// 2. GÉNÉRATEUR D'ICÔNE PNG POUR IPHONE (APPLE-TOUCH-ICON) & POCHETTE CARPLAY
+// 2. ICÔNE ÉCRAN D'ACCUEIL IPHONE & POCHETTE DYNAMIQUE CARPLAY / BLUETOOTH
 // ============================================================================
 function injectIosHomeScreenIcon() {
   try {
@@ -168,31 +174,26 @@ function injectIosHomeScreenIcon() {
     canvas.height = 512;
     const ctx = canvas.getContext('2d');
 
-    // Fond noir carbone
     ctx.fillStyle = '#09090b';
     ctx.fillRect(0, 0, 512, 512);
 
-    // Anneau externe
     ctx.strokeStyle = 'rgba(239, 68, 68, 0.3)';
     ctx.lineWidth = 12;
     ctx.beginPath();
     ctx.arc(256, 256, 200, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Soleil rouge japonais
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
     ctx.arc(256, 210, 95, 0, Math.PI * 2);
     ctx.fill();
 
-    // Kanji 車
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 105px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('車', 256, 214);
 
-    // Cartouche KURUMA FM
     ctx.fillStyle = '#18181b';
     ctx.strokeStyle = '#ef4444';
     ctx.lineWidth = 6;
@@ -248,8 +249,7 @@ function normalizeStation(st, idx) {
     genre: st.genre || 'Japanese Radio',
     streamUrl: url,
     fallbackUrl: st.fallbackUrl || '',
-    rgId: st.rgId || '',
-    useProxy: Boolean(st.useProxy || url.startsWith('http://') || st.rgId),
+    useProxy: Boolean(st.useProxy || url.startsWith('http://')),
     type: st.type || (url.includes('.m3u8') ? 'hls' : 'mp3'),
     color: (st.color && st.color.startsWith('#')) ? st.color : '#ef4444',
     isFavorite: typeof st.isFavorite === 'boolean' ? st.isFavorite : true
@@ -290,10 +290,11 @@ export default function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
 
-  // Recherche Radio Garden
-  const [rgQuery, setRgQuery] = useState('');
-  const [rgResults, setRgResults] = useState([]);
-  const [rgLoading, setRgLoading] = useState(false);
+  // Recherche de radios en direct (Radio-Browser API ouverte)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   const [newStation, setNewStation] = useState({
     name: '', kanji: '', frequency: '', prefecture: '', prefectureKanji: '', genre: '', streamUrl: '', color: '#f59e0b'
@@ -306,7 +307,6 @@ export default function App() {
 
   const currentStation = stations[currentIndex] || stations[0];
 
-  // Génère l'icône PNG pour l'écran d'accueil iPhone au démarrage
   useEffect(() => {
     injectIosHomeScreenIcon();
   }, []);
@@ -321,14 +321,11 @@ export default function App() {
     }
   }, [currentStation]);
 
-  // Récupération automatique du Titre et de l'Artiste toutes les 15 secondes
+  // Récupération du Titre et de l'Artiste toutes les 15 secondes
   const fetchNowPlaying = useCallback(async (station) => {
-    if (!station) return;
+    if (!station?.streamUrl) return;
     try {
-      const queryParam = station.rgId
-        ? `rgId=${encodeURIComponent(station.rgId)}`
-        : `url=${encodeURIComponent(station.streamUrl)}`;
-      const res = await fetch(`/api/nowplaying?${queryParam}`);
+      const res = await fetch(`/api/nowplaying?url=${encodeURIComponent(station.streamUrl)}`);
       if (!res.ok) return;
       const data = await res.json();
       if (data && data.raw) {
@@ -339,7 +336,7 @@ export default function App() {
         });
       }
     } catch {
-      // Ignore silencieusement si la radio n'envoie pas de métadonnées
+      // Ignore si la station ne diffuse pas de métadonnées ICY
     }
   }, []);
 
@@ -381,14 +378,12 @@ export default function App() {
     clearTimeout(reconnectTimerRef.current);
     destroyHls();
 
-    const useRelay = forceProxy || stationToPlay.useProxy || stationToPlay.streamUrl.startsWith('http://') || Boolean(stationToPlay.rgId);
+    const useRelay = forceProxy || stationToPlay.useProxy || stationToPlay.streamUrl.startsWith('http://');
     triedProxyRef.current = useRelay;
 
-    const targetUrl = stationToPlay.rgId
-      ? `/api/stream?rgId=${encodeURIComponent(stationToPlay.rgId)}`
-      : useRelay
-        ? `/api/stream?url=${encodeURIComponent(stationToPlay.streamUrl)}`
-        : stationToPlay.streamUrl;
+    const targetUrl = useRelay
+      ? `/api/stream?url=${encodeURIComponent(stationToPlay.streamUrl)}`
+      : stationToPlay.streamUrl;
 
     setStatus('loading');
     setErrorMsg('');
@@ -399,7 +394,7 @@ export default function App() {
 
     const isHlsStream = stationToPlay.type === 'hls' || stationToPlay.streamUrl.includes('.m3u8');
 
-    if (isHlsStream && Hls.isSupported()) {
+    if (isHlsStream && Hls.isSupported() && !useRelay) {
       const hls = new Hls({ enableWorker: false });
       hlsRef.current = hls;
       hls.loadSource(targetUrl);
@@ -414,6 +409,13 @@ export default function App() {
           setIsPlaying(false);
         }
       });
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          hls.destroy();
+          setStatus('error');
+          setErrorMsg('Flux HLS indisponible');
+        }
+      });
       return;
     }
 
@@ -424,7 +426,6 @@ export default function App() {
       setStatus('playing');
     } catch {
       if (!useRelay) {
-        // Si l'URL directe bloque, on bascule immédiatement sur le relais /api/stream
         startStream(stationToPlay, true);
       } else {
         setStatus('error');
@@ -460,7 +461,7 @@ export default function App() {
     selectAndPlayStation((currentIndex - 1 + stations.length) % stations.length);
   }, [currentIndex, stations.length, selectAndPlayStation]);
 
-  // Synchronisation Bluetooth Autoradio avec le Titre et l'Artiste en direct
+  // Synchronisation Bluetooth Autoradio avec Titre & Artiste
   useEffect(() => {
     if ('mediaSession' in navigator && currentStation) {
       const artworkUri = generateCarArtworkDataUri(currentStation, nowPlaying.title);
@@ -484,40 +485,81 @@ export default function App() {
     }
   }, [currentStation, nowPlaying, startStream, stopStream, prevStation, nextStation]);
 
-  // Recherche dans Radio Garden sans pub
-  const handleSearchRadioGarden = async (e) => {
-    e.preventDefault();
-    if (!rgQuery.trim()) return;
-    setRgLoading(true);
-    try {
-      const res = await fetch(`/api/nowplaying?search=${encodeURIComponent(rgQuery)}`);
-      const data = await res.json();
-      setRgResults(data.results || []);
-    } catch {
-      setRgResults([]);
-    } finally {
-      setRgLoading(false);
+  // Recherche directe dans l'annuaire mondial Radio-Browser (sans blocage Cloudflare)
+  const performDirectorySearch = async (paramsObj) => {
+    setSearchLoading(true);
+    setSearchError('');
+    const qs = new URLSearchParams({
+      hidebroken: 'true',
+      order: 'clickcount',
+      reverse: 'true',
+      limit: '24',
+      ...paramsObj
+    }).toString();
+
+    for (const mirror of RADIO_BROWSER_MIRRORS) {
+      try {
+        const res = await fetch(`${mirror}/json/stations/search?${qs}`);
+        if (res.ok) {
+          const data = await res.json();
+          const valid = (data || []).filter(item => item.url_resolved && !item.url_resolved.includes('radiko.jp'));
+          setSearchResults(valid);
+          if (valid.length === 0) {
+            setSearchError('Aucune station trouvée pour cette recherche.');
+          }
+          setSearchLoading(false);
+          return;
+        }
+      } catch {
+        // Passe automatiquement au serveur miroir suivant
+      }
     }
+    setSearchError('Impossible de joindre l’annuaire radio. Vérifiez votre connexion.');
+    setSearchLoading(false);
   };
 
-  const handleAddRgStation = (rgItem) => {
-    if (stations.some(s => s.rgId === rgItem.rgId)) return;
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) {
+      performDirectorySearch({ countrycode: 'JP' });
+      return;
+    }
+    performDirectorySearch({ name: searchQuery.trim() });
+  };
+
+  const handleAddDirectoryStation = (item, playImmediately = false) => {
+    const streamUrl = item.url_resolved || item.url;
+    const existingIdx = stations.findIndex(s => s.streamUrl === streamUrl);
+    if (existingIdx !== -1) {
+      if (playImmediately) {
+        selectAndPlayStation(existingIdx);
+        setCarMode(true);
+      }
+      return;
+    }
+
     const created = normalizeStation({
-      id: `rg-${rgItem.rgId}`,
+      id: `rb-${item.stationuuid || Date.now()}`,
       presetNumber: stations.length + 1,
-      name: rgItem.name,
-      kanji: 'ラジオガーデン',
-      frequency: 'RG SANS PUB',
-      prefecture: rgItem.subtitle,
-      prefectureKanji: '日本',
-      genre: 'Flux Radio Garden Direct',
-      streamUrl: rgItem.streamUrl,
-      rgId: rgItem.rgId,
-      useProxy: true,
+      name: item.name.trim(),
+      kanji: item.countrycode === 'JP' ? '日本ラジオ' : (item.country || 'Web Radio'),
+      frequency: item.bitrate ? `${item.bitrate}K` : 'WEB',
+      prefecture: item.state || item.country || 'Japon',
+      prefectureKanji: item.countrycode === 'JP' ? '日本' : 'WEB',
+      genre: item.tags ? item.tags.split(',').slice(0, 3).join(', ') : 'Radio Stream',
+      streamUrl,
+      useProxy: streamUrl.startsWith('http://'),
       color: '#10b981',
       isFavorite: true
     }, stations.length);
-    setStations([...stations, created]);
+
+    const updated = [...stations, created];
+    setStations(updated);
+    if (playImmediately) {
+      setCurrentIndex(updated.length - 1);
+      setCarMode(true);
+      startStream(created, false);
+    }
   };
 
   const toggleFavorite = (id, e) => {
@@ -586,7 +628,7 @@ export default function App() {
             style={{ backgroundColor: currentStation?.color || '#ef4444' }}
           />
           <h1 className="text-lg font-bold tracking-wider">
-            KURUMA FM <span className="text-zinc-500 font-normal text-sm">車FM v6</span>
+            KURUMA FM <span className="text-zinc-500 font-normal text-sm">車FM v7</span>
           </h1>
         </div>
 
@@ -605,7 +647,13 @@ export default function App() {
             </button>
           )}
           <button
-            onClick={() => setCarMode(!carMode)}
+            onClick={() => {
+              const nextMode = !carMode;
+              setCarMode(nextMode);
+              if (!nextMode && searchResults.length === 0) {
+                performDirectorySearch({ countrycode: 'JP' });
+              }
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition ${
               carMode ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-200'
             }`}
@@ -654,7 +702,7 @@ export default function App() {
               />
             </div>
 
-            {/* Bandeau Titre & Artiste en direct (Now Playing) */}
+            {/* Bandeau Titre & Artiste en direct */}
             <div className="z-10 bg-black/45 backdrop-blur-md rounded-2xl px-3.5 py-2.5 border border-white/10 flex items-center gap-2.5">
               <Music size={16} className="text-amber-300 shrink-0 animate-pulse" />
               <div className="truncate text-xs sm:text-sm">
@@ -667,7 +715,7 @@ export default function App() {
                   </>
                 ) : (
                   <span className="text-zinc-300 italic">
-                    {isPlaying ? 'Diffusion en direct (titre non communiqué par la station)' : 'Appuyez sur Écouter pour lancer le direct'}
+                    {isPlaying ? 'En direct (titre en cours de récupération...)' : 'Appuyez sur Écouter pour lancer le direct'}
                   </span>
                 )}
               </div>
@@ -775,47 +823,105 @@ export default function App() {
         </main>
       ) : (
         <main className="flex-1 p-5 max-w-3xl mx-auto w-full space-y-6">
-          {/* Moteur de recherche Radio Garden sans pub */}
+          {/* Annuaire Mondial de Radios en Direct (Sans Pub) */}
           <div className="bg-zinc-900 p-4 rounded-2xl border border-emerald-500/30 space-y-3">
             <h3 className="font-bold text-sm text-emerald-400 flex items-center gap-2">
-              <Globe size={17} /> Importer depuis Radio Garden (Flux direct sans pub)
+              <Globe size={17} /> Explorer & Importer des Radios (Flux directs sans pub)
             </h3>
-            <form onSubmit={handleSearchRadioGarden} className="flex gap-2">
+
+            {/* Filtres rapides en 1 clic */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => performDirectorySearch({ countrycode: 'JP' })}
+                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition"
+              >
+                🇯🇵 Top Japon
+              </button>
+              <button
+                type="button"
+                onClick={() => performDirectorySearch({ tag: 'jazz', name: 'japan' })}
+                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition"
+              >
+                🎷 Jazz JP
+              </button>
+              <button
+                type="button"
+                onClick={() => performDirectorySearch({ tag: 'jpop' })}
+                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition"
+              >
+                🌆 J-Pop / City Pop
+              </button>
+              <button
+                type="button"
+                onClick={() => performDirectorySearch({ tag: 'jrock' })}
+                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition"
+              >
+                🎸 J-Rock
+              </button>
+              <button
+                type="button"
+                onClick={() => performDirectorySearch({ tag: 'anime' })}
+                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition"
+              >
+                ✨ Anime / Otaku
+              </button>
+            </div>
+
+            <form onSubmit={handleSearchSubmit} className="flex gap-2">
               <input
                 type="text"
-                placeholder="Chercher une ville ou radio (ex: Karuizawa, Tokyo, Jazz, Okinawa...)"
-                value={rgQuery}
-                onChange={e => setRgQuery(e.target.value)}
+                placeholder="Rechercher par nom (ex: Shonan, Tokyo, Sakura, Jazz, Asia Dream...)"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
               />
               <button
                 type="submit"
-                disabled={rgLoading}
+                disabled={searchLoading}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm flex items-center gap-1.5 shrink-0"
               >
-                <Search size={16} /> {rgLoading ? '...' : 'Chercher'}
+                <Search size={16} /> {searchLoading ? '...' : 'Chercher'}
               </button>
             </form>
 
-            {rgResults.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-                {rgResults.map((item) => {
-                  const added = stations.some(s => s.rgId === item.rgId);
+            {searchError && (
+              <p className="text-xs text-amber-400">{searchError}</p>
+            )}
+
+            {searchResults.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-80 overflow-y-auto pr-1">
+                {searchResults.map((item) => {
+                  const streamUrl = item.url_resolved || item.url;
+                  const added = stations.some(s => s.streamUrl === streamUrl);
                   return (
-                    <div key={item.rgId} className="flex items-center justify-between p-3 rounded-xl bg-zinc-950 border border-zinc-800">
-                      <div className="truncate pr-2">
+                    <div key={item.stationuuid} className="flex items-center justify-between p-3 rounded-xl bg-zinc-950 border border-zinc-800 gap-2">
+                      <div className="truncate flex-1">
                         <div className="font-bold text-sm text-zinc-100 truncate">{item.name}</div>
-                        <div className="text-xs text-zinc-500 truncate">{item.subtitle}</div>
+                        <div className="text-xs text-zinc-500 truncate">
+                          {item.country || 'Japon'} {item.bitrate ? `• ${item.bitrate} kbps` : ''} {item.tags ? `• ${item.tags}` : ''}
+                        </div>
                       </div>
-                      <button
-                        disabled={added}
-                        onClick={() => handleAddRgStation(item)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 ${
-                          added ? 'bg-zinc-800 text-zinc-500' : 'bg-emerald-500 hover:bg-emerald-400 text-zinc-950'
-                        }`}
-                      >
-                        {added ? 'Ajoutée' : '+ Ajouter'}
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleAddDirectoryStation(item, true)}
+                          title="Écouter maintenant"
+                          className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-emerald-400"
+                        >
+                          <Play size={14} fill="currentColor" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={added}
+                          onClick={() => handleAddDirectoryStation(item, false)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold ${
+                            added ? 'bg-zinc-800 text-zinc-500' : 'bg-emerald-500 hover:bg-emerald-400 text-zinc-950'
+                          }`}
+                        >
+                          {added ? 'Ajoutée' : '+ Ajouter'}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -825,9 +931,9 @@ export default function App() {
 
           <div className="flex items-center justify-between bg-zinc-900/90 p-4 rounded-2xl border border-zinc-800">
             <div>
-              <h3 className="font-bold text-sm text-zinc-200">Recharger les 10 stations par défaut (v6)</h3>
+              <h3 className="font-bold text-sm text-zinc-200">Recharger les 10 stations par défaut (v7)</h3>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Charge Jazz Sakura, J-Pop Sakura, Shonan Beach FM, J1 Gold, etc.
+                Réinitialise la liste avec Jazz Sakura, J-Pop Sakura 80s, J-Rock Powerplay, etc.
               </p>
             </div>
             <button
@@ -861,7 +967,7 @@ export default function App() {
             </div>
             <input
               type="url"
-              placeholder="URL du flux (http:// ou https://)"
+              placeholder="URL directe du flux (http:// ou https://)"
               value={newStation.streamUrl}
               onChange={e => setNewStation({ ...newStation, streamUrl: e.target.value })}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
