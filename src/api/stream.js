@@ -19,7 +19,6 @@ function pipeRadioSocket(urlString, req, res, redirectsLeft = 3) {
   const port = parsed.port ? parseInt(parsed.port, 10) : (isHttps ? 443 : 80);
   const host = parsed.hostname;
 
-  // Sur Shoutcast v2, /stream renvoie un flux plus stable que /;
   let path = (parsed.pathname || '/') + (parsed.search || '');
   if (path === '/' || path.endsWith('/;')) {
     path = '/stream';
@@ -30,19 +29,24 @@ function pipeRadioSocket(urlString, req, res, redirectsLeft = 3) {
     : { host, port };
 
   const socket = isHttps ? tls.connect(options) : net.connect(options);
-  socket.setTimeout(8000);
+  // Timeout uniquement pour établir la connexion initiale
+  socket.setTimeout(6000);
 
   let headersParsed = false;
   let headerBuffer = Buffer.alloc(0);
 
   const sendGetRequest = () => {
+    // Une fois connecté, on supprime le timeout pour ne jamais couper le flux audio
+    socket.setTimeout(0);
+    socket.setKeepAlive(true, 10000);
+
     const rawReq = [
       `GET ${path} HTTP/1.0`,
       `Host: ${host}:${port}`,
       `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)`,
       `Accept: */*`,
       `Icy-MetaData: 0`,
-      `Connection: close`,
+      `Connection: keep-alive`,
       `\r\n`
     ].join('\r\n');
     socket.write(rawReq);
@@ -70,7 +74,6 @@ function pipeRadioSocket(urlString, req, res, redirectsLeft = 3) {
       const lines = headerText.split('\r\n');
       const statusLine = lines[0] || '';
 
-      // Suivi des redirections HTTP 301/302/307/308
       if (/^HTTP\/\d\.\d\s+30[12378]/.test(statusLine)) {
         const locLine = lines.find(l => l.toLowerCase().startsWith('location:'));
         if (locLine) {
@@ -101,7 +104,7 @@ function pipeRadioSocket(urlString, req, res, redirectsLeft = 3) {
 
   socket.on('timeout', () => {
     socket.destroy();
-    if (!res.headersSent) res.status(504).end('Timeout');
+    if (!res.headersSent) res.status(504).end('Timeout connexion');
     else res.end();
   });
 
